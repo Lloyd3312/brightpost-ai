@@ -1,23 +1,71 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Globe, PlusCircle, TrendingUp, Calendar, Sparkles } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Bell, Globe, PlusCircle, TrendingUp, Calendar, Sparkles, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import aiIllustration from "@/assets/ai-illustration.png";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
+  const [posts, setPosts] = useState<any[]>([]);
 
-  const upcomingPosts = [
-    { platform: "Instagram", time: "Today, 3:00 PM", title: "Summer Collection Launch" },
-    { platform: "TikTok", time: "Today, 6:00 PM", title: "Behind the Scenes" },
-    { platform: "Facebook", time: "Tomorrow, 10:00 AM", title: "Weekly Tips" },
-  ];
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchPosts();
+    }
+  }, [user]);
+
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (error) {
+      console.error('Error fetching posts:', error);
+      toast.error("Failed to load posts");
+    } else {
+      setPosts(data || []);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  const upcomingPosts = posts.filter(p => p.status === 'scheduled').map(post => ({
+    platform: post.platforms?.[0] || "Instagram",
+    time: new Date(post.scheduled_at).toLocaleString(),
+    title: post.caption?.substring(0, 30) + "..." || "Untitled Post",
+    id: post.id
+  }));
 
   const stats = [
-    { label: "Total Posts", value: "127", trend: "+12%" },
-    { label: "Engagement", value: "94.2%", trend: "+8%" },
-    { label: "Followers", value: "12.4K", trend: "+15%" },
+    { label: "Total Posts", value: posts.length.toString(), trend: "+12%" },
+    { label: "Scheduled", value: upcomingPosts.length.toString(), trend: "+8%" },
+    { label: "Draft", value: posts.filter(p => p.status === 'draft').length.toString(), trend: "+15%" },
   ];
 
   return (
@@ -28,7 +76,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-bold">
-                P
+                {user.email?.[0].toUpperCase()}
               </div>
               <div>
                 <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
@@ -40,8 +88,13 @@ const Dashboard = () => {
               <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/20">
                 <Bell className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/20">
-                <Globe className="h-5 w-5" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-primary-foreground hover:bg-white/20"
+                onClick={signOut}
+              >
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -120,22 +173,35 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {upcomingPosts.map((post, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-4 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
-              >
-                <div>
-                  <p className="font-semibold">{post.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {post.platform} • {post.time}
-                  </p>
-                </div>
-                <Button size="sm" variant="ghost">
-                  Edit
+            {upcomingPosts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No scheduled posts yet</p>
+                <Button 
+                  className="mt-4"
+                  onClick={() => navigate("/create")}
+                >
+                  Create Your First Post
                 </Button>
               </div>
-            ))}
+            ) : (
+              upcomingPosts.map((post, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <div>
+                    <p className="font-semibold">{post.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {post.platform} • {post.time}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost">
+                    Edit
+                  </Button>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

@@ -1,16 +1,31 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import SocialActions from "@/components/SocialActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
 import { Upload, Sparkles, Calendar, Instagram, Facebook, Twitter, Linkedin, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const CreatePost = () => {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [caption, setCaption] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["tiktok"]);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
 
   const platforms = [
     { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-gradient-to-br from-purple-500 to-pink-500" },
@@ -28,10 +43,107 @@ const CreatePost = () => {
     );
   };
 
-  const generateCaption = () => {
-    toast.success("AI caption generated!");
-    setCaption("🌟 Discover the future of social media management! With AI-powered insights and seamless scheduling, your content strategy just got smarter. #SocialMedia #AI #ContentCreation #DigitalMarketing");
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setMediaFile(file);
+
+    // Upload to Supabase Storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user?.id}/${Math.random()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('post-media')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      toast.error("Failed to upload file");
+      console.error(uploadError);
+      return;
+    }
+
+    const { data } = supabase.storage.from('post-media').getPublicUrl(fileName);
+    setMediaUrl(data.publicUrl);
+    toast.success("Media uploaded successfully!");
   };
+
+  const generateCaption = async () => {
+    if (!caption.trim()) {
+      toast.error("Please describe your post idea first");
+      return;
+    }
+
+    setGenerating(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-caption', {
+        body: { prompt: caption, tone: 'professional' }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast.error(data.error);
+      } else {
+        const fullCaption = `${data.caption}\n\n${data.hashtags.map((h: string) => `#${h}`).join(' ')} ${data.emojis || ''}`;
+        setCaption(fullCaption);
+        toast.success("AI caption generated!");
+      }
+    } catch (error) {
+      console.error('Error generating caption:', error);
+      toast.error("Failed to generate caption");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const savePost = async (status: 'draft' | 'scheduled') => {
+    if (!user) return;
+    
+    if (!caption.trim()) {
+      toast.error("Please add a caption");
+      return;
+    }
+
+    if (selectedPlatforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('save-post', {
+        body: {
+          caption,
+          mediaUrl,
+          platforms: selectedPlatforms,
+          scheduledAt: status === 'scheduled' ? new Date(Date.now() + 3600000).toISOString() : null,
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success(status === 'draft' ? "Post saved as draft!" : "Post scheduled successfully!");
+      navigate('/');
+    } catch (error) {
+      console.error('Error saving post:', error);
+      toast.error("Failed to save post");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -49,11 +161,21 @@ const CreatePost = () => {
               <CardTitle className="font-heading text-lg">Upload Media</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed border-border rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-muted/30">
-                <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-sm font-medium mb-1">Drag & drop or click to upload</p>
-                <p className="text-xs text-muted-foreground">Supports images, videos up to 20MB</p>
-              </div>
+              <label className="block">
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <div className="border-2 border-dashed border-border rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-muted/30">
+                  <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-sm font-medium mb-1">
+                    {mediaFile ? mediaFile.name : "Drag & drop or click to upload"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Supports images, videos up to 20MB</p>
+                </div>
+              </label>
             </CardContent>
           </Card>
 
@@ -77,9 +199,10 @@ const CreatePost = () => {
                 <Button 
                   onClick={generateCaption}
                   className="bg-gradient-primary rounded-xl"
+                  disabled={generating || !caption.trim()}
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Caption
+                  {generating ? "Generating..." : "Generate Caption"}
                 </Button>
                 <Button variant="outline" className="rounded-xl">
                   Add Hashtags
@@ -89,7 +212,7 @@ const CreatePost = () => {
               {caption && (
                 <div className="p-4 bg-muted rounded-xl">
                   <p className="text-sm font-medium mb-2">Preview:</p>
-                  <p className="text-sm">{caption}</p>
+                  <p className="text-sm whitespace-pre-wrap">{caption}</p>
                 </div>
               )}
             </CardContent>
@@ -142,26 +265,25 @@ const CreatePost = () => {
             <CardHeader>
               <CardTitle className="font-heading text-lg flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-primary" />
-                Schedule
+                Publish
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 rounded-xl h-12">
-                  Pick Date & Time
+                <Button 
+                  onClick={() => savePost('draft')}
+                  variant="outline" 
+                  className="flex-1 rounded-xl h-12"
+                  disabled={saving}
+                >
+                  Save as Draft
                 </Button>
-                <Button variant="outline" className="rounded-xl">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  AI Best Time
-                </Button>
-              </div>
-              
-              <div className="flex gap-3">
-                <Button className="flex-1 bg-gradient-primary rounded-xl h-12 text-base font-semibold">
-                  Schedule Post
-                </Button>
-                <Button variant="outline" className="rounded-xl">
-                  Post Now
+                <Button 
+                  onClick={() => savePost('scheduled')}
+                  className="flex-1 bg-gradient-primary rounded-xl h-12 text-base font-semibold"
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Schedule Post"}
                 </Button>
               </div>
             </CardContent>
