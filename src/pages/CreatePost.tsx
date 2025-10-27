@@ -1,4 +1,5 @@
 import BottomNav from "@/components/BottomNav";
+import SocialActions from "@/components/SocialActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 
 const CreatePost = () => {
   const [caption, setCaption] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["tiktok"]);
 
   const platforms = [
     { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-gradient-to-br from-purple-500 to-pink-500" },
@@ -165,6 +166,9 @@ const CreatePost = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Social Actions */}
+          <SocialActions />
         </div>
       </div>
 
