@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
@@ -8,17 +9,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Validation schema
+const requestSchema = z.object({
+  prompt: z.string().min(1, "Prompt is required").max(1000, "Prompt must be less than 1000 characters"),
+  tone: z.enum(['professional', 'funny', 'trendy', 'informative']).default('professional')
+});
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { prompt, tone = 'professional' } = await req.json();
-
-    if (!prompt) {
-      throw new Error('Prompt is required');
+    const body = await req.json();
+    
+    // Validate input
+    const validationResult = requestSchema.safeParse(body);
+    if (!validationResult.success) {
+      return new Response(JSON.stringify({ 
+        error: "Invalid input", 
+        details: validationResult.error.errors.map(e => e.message).join(", ")
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    const { prompt, tone } = validationResult.data;
 
     const systemPrompt = `You are a social media caption expert. Generate engaging captions with relevant hashtags based on the user's description. 
     
@@ -96,8 +113,8 @@ Format your response as JSON with this structure:
 
   } catch (error) {
     console.error('Error in generate-caption function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    // Return generic error message to avoid information leakage
+    return new Response(JSON.stringify({ error: "Failed to generate caption. Please try again." }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

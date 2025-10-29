@@ -16,8 +16,8 @@ const CreatePost = () => {
   const { user, loading } = useAuth();
   const [caption, setCaption] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["tiktok"]);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -47,25 +47,38 @@ const CreatePost = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setMediaFile(file);
-
-    // Upload to Supabase Storage
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user?.id}/${Math.random()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('post-media')
-      .upload(fileName, file);
-
-    if (uploadError) {
-      toast.error("Failed to upload file");
-      console.error(uploadError);
+    // Client-side validation
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (file.size > maxSize) {
+      toast.error('File too large. Maximum size is 20MB');
       return;
     }
 
-    const { data } = supabase.storage.from('post-media').getPublicUrl(fileName);
-    setMediaUrl(data.publicUrl);
-    toast.success("Media uploaded successfully!");
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Only images and videos are allowed');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const { data, error } = await supabase.functions.invoke('validate-upload', {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      setMediaFile(data.url);
+      toast.success('Media uploaded successfully!');
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast.error(error?.message || 'Failed to upload media');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const generateCaption = async () => {
@@ -117,7 +130,7 @@ const CreatePost = () => {
       const { data, error } = await supabase.functions.invoke('save-post', {
         body: {
           caption,
-          mediaUrl,
+          mediaUrl: mediaFile,
           platforms: selectedPlatforms,
           scheduledAt: status === 'scheduled' ? new Date(Date.now() + 3600000).toISOString() : null,
         }
@@ -171,7 +184,7 @@ const CreatePost = () => {
                 <div className="border-2 border-dashed border-border rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-muted/30">
                   <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-sm font-medium mb-1">
-                    {mediaFile ? mediaFile.name : "Drag & drop or click to upload"}
+                    {isUploading ? "Uploading..." : mediaFile ? "File uploaded" : "Drag & drop or click to upload"}
                   </p>
                   <p className="text-xs text-muted-foreground">Supports images, videos up to 20MB</p>
                 </div>
