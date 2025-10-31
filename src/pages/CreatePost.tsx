@@ -111,6 +111,58 @@ const CreatePost = () => {
     }
   };
 
+  const postNow = async () => {
+    if (!user) return;
+    
+    if (!caption.trim()) {
+      toast.error("Please add a caption");
+      return;
+    }
+
+    if (selectedPlatforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Post to Twitter if selected
+      if (selectedPlatforms.includes('twitter')) {
+        const { data, error } = await supabase.functions.invoke('post-to-twitter', {
+          body: { caption }
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast.success("Posted to Twitter successfully!");
+        } else {
+          throw new Error(data.error || "Failed to post to Twitter");
+        }
+      }
+
+      // Save to database
+      const { data, error } = await supabase.functions.invoke('save-post', {
+        body: {
+          caption,
+          mediaUrl: mediaFile,
+          platforms: selectedPlatforms,
+          scheduledAt: null,
+        }
+      });
+
+      if (error) throw error;
+
+      navigate('/');
+    } catch (error: any) {
+      console.error('Error posting:', error);
+      toast.error(error.message || "Failed to post");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const savePost = async (status: 'draft' | 'scheduled') => {
     if (!user) return;
     
@@ -293,12 +345,21 @@ const CreatePost = () => {
                 </Button>
                 <Button 
                   onClick={() => savePost('scheduled')}
-                  className="flex-1 bg-gradient-primary rounded-xl h-12 text-base font-semibold"
+                  variant="outline"
+                  className="flex-1 rounded-xl h-12"
                   disabled={saving}
                 >
                   {saving ? "Saving..." : "Schedule Post"}
                 </Button>
               </div>
+              <Button 
+                onClick={postNow}
+                className="w-full bg-gradient-primary rounded-xl h-12 text-base font-semibold"
+                disabled={saving}
+              >
+                <Twitter className="mr-2 h-4 w-4" />
+                {saving ? "Posting..." : "Post Now to Twitter"}
+              </Button>
             </CardContent>
           </Card>
 

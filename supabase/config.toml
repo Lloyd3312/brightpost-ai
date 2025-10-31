@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.validate-upload]
 verify_jwt = true
+
+[functions.post-to-twitter]
+verify_jwt = true
