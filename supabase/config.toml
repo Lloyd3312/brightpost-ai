@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.oauth-tiktok]
 verify_jwt = false
+
+[functions.oauth-youtube]
+verify_jwt = false
+
+[functions.oauth-linkedin]
+verify_jwt = false

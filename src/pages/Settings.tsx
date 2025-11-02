@@ -16,8 +16,11 @@ const Settings = () => {
 
   const platforms = [
     { id: "instagram", name: "Instagram" },
+    { id: "facebook", name: "Facebook" },
     { id: "twitter", name: "X (Twitter)" },
     { id: "tiktok", name: "TikTok" },
+    { id: "youtube", name: "YouTube" },
+    { id: "linkedin", name: "LinkedIn" },
   ];
 
   const fetchConnectedAccounts = async () => {
