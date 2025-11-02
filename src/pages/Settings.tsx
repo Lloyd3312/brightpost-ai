@@ -3,21 +3,51 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, Globe, Bell, Link2, Crown, HelpCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { ConnectPlatform } from "@/components/ConnectPlatform";
 
 const Settings = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [autoReschedule, setAutoReschedule] = useState(true);
+  const [connectedAccounts, setConnectedAccounts] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
-  const connectedAccounts = [
-    { name: "Instagram", connected: true },
-    { name: "Facebook", connected: true },
-    { name: "TikTok", connected: false },
-    { name: "YouTube", connected: false },
-    { name: "X (Twitter)", connected: true },
-    { name: "LinkedIn", connected: false },
+  const platforms = [
+    { id: "instagram", name: "Instagram" },
+    { id: "twitter", name: "X (Twitter)" },
+    { id: "tiktok", name: "TikTok" },
   ];
+
+  const fetchConnectedAccounts = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from('connected_accounts')
+        .select('platform')
+        .eq('user_id', session.user.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      const connected: Record<string, boolean> = {};
+      data?.forEach(account => {
+        connected[account.platform] = true;
+      });
+      setConnectedAccounts(connected);
+    } catch (error) {
+      console.error('Error fetching connected accounts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConnectedAccounts();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -89,23 +119,23 @@ const Settings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {connectedAccounts.map((account, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 rounded-xl bg-muted"
-                >
-                  <span className="font-semibold">{account.name}</span>
-                  {account.connected ? (
-                    <Button variant="outline" size="sm" className="rounded-lg">
-                      Disconnect
-                    </Button>
-                  ) : (
-                    <Button size="sm" className="rounded-lg bg-gradient-primary">
-                      Connect
-                    </Button>
-                  )}
-                </div>
-              ))}
+              {loading ? (
+                <div className="text-center py-4 text-muted-foreground">Loading...</div>
+              ) : (
+                platforms.map((platform) => (
+                  <div
+                    key={platform.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-muted"
+                  >
+                    <span className="font-semibold">{platform.name}</span>
+                    <ConnectPlatform
+                      platform={platform}
+                      isConnected={connectedAccounts[platform.id] || false}
+                      onStatusChange={fetchConnectedAccounts}
+                    />
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 

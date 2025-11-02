@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.post-to-twitter]
 verify_jwt = true
+
+[functions.oauth-twitter]
+verify_jwt = false
+
+[functions.oauth-facebook]
+verify_jwt = false
+
+[functions.oauth-tiktok]
+verify_jwt = false

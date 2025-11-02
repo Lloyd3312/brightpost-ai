@@ -29,10 +29,8 @@ const CreatePost = () => {
 
   const platforms = [
     { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-gradient-to-br from-purple-500 to-pink-500" },
-    { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600" },
     { id: "twitter", name: "X (Twitter)", icon: Twitter, color: "bg-black" },
-    { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-    { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600" },
+    { id: "tiktok", name: "TikTok", icon: Youtube, color: "bg-black" },
   ];
 
   const togglePlatform = (platformId: string) => {
@@ -334,31 +332,12 @@ const CreatePost = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-3">
-                <Button 
-                  onClick={() => savePost('draft')}
-                  variant="outline" 
-                  className="flex-1 rounded-xl h-12"
-                  disabled={saving}
-                >
-                  Save as Draft
-                </Button>
-                <Button 
-                  onClick={() => savePost('scheduled')}
-                  variant="outline"
-                  className="flex-1 rounded-xl h-12"
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Schedule Post"}
-                </Button>
-              </div>
               <Button 
                 onClick={postNow}
                 className="w-full bg-gradient-primary rounded-xl h-12 text-base font-semibold"
                 disabled={saving}
               >
-                <Twitter className="mr-2 h-4 w-4" />
-                {saving ? "Posting..." : "Post Now to Twitter"}
+                {saving ? "Posting..." : "Post Now"}
               </Button>
             </CardContent>
           </Card>
